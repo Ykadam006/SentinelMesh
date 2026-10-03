@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-engine
+  namespace: sentinelmesh
+  labels:
+    app: alert-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alert-engine
+  template:
+    metadata:
+      labels:
+        app: alert-engine
+    spec:
+      containers:
+      - name: alert-engine
+        image: sentinelmesh/alert-engine:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8082
+          name: http-metrics
+        env:
+        - name: KAFKA_BROKER
+          valueFrom:
+            configMapKeyRef:
+              name: sentinelmesh-config
+              key: KAFKA_BROKER
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8082
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8082
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

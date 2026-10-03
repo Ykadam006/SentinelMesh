@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-api
+  namespace: sentinelmesh
+  labels:
+    app: incident-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: incident-api
+  template:
+    metadata:
+      labels:
+        app: incident-api
+    spec:
+      containers:
+      - name: incident-api
+        image: sentinelmesh/incident-api:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 50052
+          name: grpc
+        - containerPort: 8083
+          name: http-metrics
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: sentinelmesh-db-secret
+              key: DB_HOST
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: sentinelmesh-db-secret
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sentinelmesh-db-secret
+              key: DB_PASSWORD
+        - name: KAFKA_BROKER
+          valueFrom:
+            configMapKeyRef:
+              name: sentinelmesh-config
+              key: KAFKA_BROKER
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8083
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8083
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: incident-api
+  namespace: sentinelmesh
+spec:
+  selector:
+    app: incident-api
+  ports:
+    - protocol: TCP
+      port: 50052
+      targetPort: 50052
+      name: grpc

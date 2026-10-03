@@ -1,0 +1,10 @@
+go 1.27.1
+
+use (
+	./protos
+	./services/alert-engine
+	./services/api-gateway
+	./services/incident-api
+	./services/metrics-api
+	./services/stream-processor
+)

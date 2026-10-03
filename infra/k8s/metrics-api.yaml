@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-api
+  namespace: sentinelmesh
+  labels:
+    app: metrics-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: metrics-api
+  template:
+    metadata:
+      labels:
+        app: metrics-api
+    spec:
+      containers:
+      - name: metrics-api
+        image: sentinelmesh/metrics-api:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 8081
+          name: http-metrics
+        env:
+        - name: KAFKA_BROKER
+          valueFrom:
+            configMapKeyRef:
+              name: sentinelmesh-config
+              key: KAFKA_BROKER
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-api
+  namespace: sentinelmesh
+spec:
+  selector:
+    app: metrics-api
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: 50051
+      name: grpc

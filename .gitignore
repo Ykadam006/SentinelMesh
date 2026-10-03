@@ -1,0 +1,33 @@
+# AI assistants
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.cursor/
+.cursorrules
+.cursorignore
+.cursorindexingignore
+.gemini/
+GEMINI.md
+AGENTS.md
+.aider*
+.copilot/
+.github/copilot-instructions.md
+.windsurf/
+.windsurfrules
+.continue/
+.codeium/
+
+# Go build output
+services/*/alert-engine
+services/*/api-gateway
+services/*/incident-api
+services/*/metrics-api
+services/*/stream-processor
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# OS
+.DS_Store

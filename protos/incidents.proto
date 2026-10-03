@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package incidents;
+option go_package = "github.com/ykadam006/sentinelmesh/protos/incidents";
+
+service IncidentService {
+  rpc GetIncidents(GetIncidentsRequest) returns (GetIncidentsResponse);
+  rpc UpdateIncidentStatus(UpdateIncidentStatusRequest) returns (UpdateIncidentStatusResponse);
+}
+
+message GetIncidentsRequest {
+  string service_id = 1; // optional
+  string status = 2; // optional, e.g., "ACTIVE", "RESOLVED"
+}
+
+message Incident {
+  string id = 1;
+  string service_id = 2;
+  string title = 3;
+  string description = 4;
+  string status = 5;
+  int64 created_at = 6;
+  int64 resolved_at = 7;
+}
+
+message GetIncidentsResponse {
+  repeated Incident incidents = 1;
+}
+
+message UpdateIncidentStatusRequest {
+  string incident_id = 1;
+  string status = 2;
+}
+
+message UpdateIncidentStatusResponse {
+  bool success = 1;
+  Incident incident = 2;
+}

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stream-processor
+  namespace: sentinelmesh
+  labels:
+    app: stream-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stream-processor
+  template:
+    metadata:
+      labels:
+        app: stream-processor
+    spec:
+      containers:
+      - name: stream-processor
+        image: sentinelmesh/stream-processor:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8084
+          name: http-metrics
+        env:
+        - name: KAFKA_BROKER
+          valueFrom:
+            configMapKeyRef:
+              name: sentinelmesh-config
+              key: KAFKA_BROKER
+        - name: ELASTICSEARCH_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sentinelmesh-config
+              key: ELASTICSEARCH_URL
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8084
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8084
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

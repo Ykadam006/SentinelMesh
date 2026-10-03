@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package metrics;
+option go_package = "github.com/ykadam006/sentinelmesh/protos/metrics";
+
+service MetricsService {
+  rpc ReportMetric(MetricRequest) returns (MetricResponse);
+}
+
+message MetricRequest {
+  string service_id = 1;
+  string metric_name = 2; // e.g. "latency", "error_rate", "cpu", "memory"
+  double value = 3;
+  int64 timestamp = 4;
+}
+
+message MetricResponse {
+  bool success = 1;
+  string message = 2;
+}
