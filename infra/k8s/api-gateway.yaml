@@ -33,6 +33,11 @@ spec:
             configMapKeyRef:
               name: sentinelmesh-config
               key: INCIDENT_API_HOST
+        - name: ALERT_ENGINE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sentinelmesh-config
+              key: ALERT_ENGINE_URL
         livenessProbe:
           httpGet:
             path: /metrics

@@ -47,3 +47,16 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-engine
+  namespace: sentinelmesh
+spec:
+  selector:
+    app: alert-engine
+  ports:
+  - name: http
+    port: 8082
+    targetPort: 8082

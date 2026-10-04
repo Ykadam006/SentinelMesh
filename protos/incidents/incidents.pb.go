@@ -82,6 +82,8 @@ type Incident struct {
 	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	ResolvedAt    int64                  `protobuf:"varint,7,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	Severity      string                 `protobuf:"bytes,8,opt,name=severity,proto3" json:"severity,omitempty"` // P1, P2, P3
+	AckedAt       int64                  `protobuf:"varint,9,opt,name=acked_at,json=ackedAt,proto3" json:"acked_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -161,6 +163,20 @@ func (x *Incident) GetCreatedAt() int64 {
 func (x *Incident) GetResolvedAt() int64 {
 	if x != nil {
 		return x.ResolvedAt
+	}
+	return 0
+}
+
+func (x *Incident) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *Incident) GetAckedAt() int64 {
+	if x != nil {
+		return x.AckedAt
 	}
 	return 0
 }
@@ -321,7 +337,7 @@ const file_incidents_proto_rawDesc = "" +
 	"\x13GetIncidentsRequest\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status\"\xc9\x01\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"\x80\x02\n" +
 	"\bIncident\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -332,7 +348,9 @@ const file_incidents_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x1f\n" +
 	"\vresolved_at\x18\a \x01(\x03R\n" +
-	"resolvedAt\"I\n" +
+	"resolvedAt\x12\x1a\n" +
+	"\bseverity\x18\b \x01(\tR\bseverity\x12\x19\n" +
+	"\backed_at\x18\t \x01(\x03R\aackedAt\"I\n" +
 	"\x14GetIncidentsResponse\x121\n" +
 	"\tincidents\x18\x01 \x03(\v2\x13.incidents.IncidentR\tincidents\"V\n" +
 	"\x1bUpdateIncidentStatusRequest\x12\x1f\n" +

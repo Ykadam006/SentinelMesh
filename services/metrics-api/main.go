@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -75,9 +76,10 @@ func main() {
 	}
 
 	kw := &kafka.Writer{
-		Addr:     kafka.TCP(broker),
-		Topic:    "service.metric.received",
-		Balancer: &kafka.LeastBytes{},
+		Addr:         kafka.TCP(broker),
+		Topic:        "service.metric.received",
+		Balancer:     &kafka.LeastBytes{},
+		BatchTimeout: 10 * time.Millisecond, // default 1s batch window blocks every synchronous write
 	}
 	defer kw.Close()
 

@@ -7,5 +7,6 @@ data:
   KAFKA_BROKER: "sentinelmesh-kafka:9092"
   METRICS_API_HOST: "metrics-api:50051"
   INCIDENT_API_HOST: "incident-api:50052"
+  ALERT_ENGINE_URL: "http://alert-engine:8082"
   PROMETHEUS_URL: "http://prometheus.monitoring.svc.cluster.local:9090"
   ELASTICSEARCH_URL: "http://elasticsearch.sentinelmesh.svc.cluster.local:9200"

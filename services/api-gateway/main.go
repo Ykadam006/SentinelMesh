@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 )
 
 var (
+	alertEngineURL  = getEnv("ALERT_ENGINE_URL", "http://localhost:8082")
 	metricsClient   metricspb.MetricsServiceClient
 	incidentsClient incidentspb.IncidentServiceClient
 )
@@ -99,6 +101,19 @@ func updateIncidentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+// servicesHandler relays per-service SLO health from the alert engine
+func servicesHandler(w http.ResponseWriter, r *http.Request) {
+	resp, err := http.Get(alertEngineURL + "/health")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -147,6 +162,7 @@ func main() {
 
 	http.HandleFunc("/api/metrics", enableCORS(reportMetricHandler))
 	http.HandleFunc("/api/incidents", enableCORS(incidentsRouter))
+	http.HandleFunc("/api/services", enableCORS(servicesHandler))
 	http.HandleFunc("/health", enableCORS(healthHandler))
 	http.Handle("/metrics", promhttp.Handler())
 

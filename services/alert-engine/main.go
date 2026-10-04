@@ -34,11 +34,11 @@ type Alert struct {
 }
 
 type ServiceStatusChange struct {
-	ServiceID  string `json:"service_id"`
-	OldStatus  string `json:"old_status"`
-	NewStatus  string `json:"new_status"`
-	Timestamp  int64  `json:"timestamp"`
-	Reason     string `json:"reason"`
+	ServiceID string `json:"service_id"`
+	OldStatus string `json:"old_status"`
+	NewStatus string `json:"new_status"`
+	Timestamp int64  `json:"timestamp"`
+	Reason    string `json:"reason"`
 }
 
 // ----- SLO Configuration -----
@@ -59,7 +59,9 @@ type ServiceSLI struct {
 	LatencySum      float64
 	LatencyCount    int64
 	LatencyMax      float64
+	LatencyLast     float64
 	CurrentStatus   string
+	Breaches        map[string]string // metric name -> WARNING/CRITICAL while that metric is over threshold
 	LastUpdated     time.Time
 	ErrorBudgetUsed float64
 }
@@ -119,7 +121,7 @@ func getSLI(serviceID string) *ServiceSLI {
 	if sli, ok := serviceSLIs[serviceID]; ok {
 		return sli
 	}
-	sli := &ServiceSLI{CurrentStatus: "HEALTHY", LastUpdated: time.Now()}
+	sli := &ServiceSLI{CurrentStatus: "HEALTHY", LastUpdated: time.Now(), Breaches: map[string]string{}}
 	serviceSLIs[serviceID] = sli
 	return sli
 }
@@ -138,7 +140,7 @@ func calculateErrorBudgetRemaining(serviceID string, availability float64) float
 	if !exists {
 		config = SLOConfig{Target: 99.9}
 	}
-	maxDowntime := 100.0 - config.Target  // e.g., 0.1% for 99.9%
+	maxDowntime := 100.0 - config.Target // e.g., 0.1% for 99.9%
 	currentDowntime := 100.0 - availability
 	if maxDowntime <= 0 {
 		return 0
@@ -164,6 +166,7 @@ func evaluateMetric(metric Metric, alertWriter, statusWriter *kafka.Writer) {
 		sli.LatencySum += metric.Value
 		sli.LatencyCount++
 		sli.LatencyMax = math.Max(sli.LatencyMax, metric.Value)
+		sli.LatencyLast = metric.Value
 	case "error_rate":
 		sli.TotalRequests += 100 // approximate per batch
 		sli.FailedRequests += int64(metric.Value)
@@ -230,21 +233,14 @@ func evaluateMetric(metric Metric, alertWriter, statusWriter *kafka.Writer) {
 	serviceAvailability.WithLabelValues(metric.ServiceID).Set(availability)
 	errorBudgetRemaining.WithLabelValues(metric.ServiceID).Set(budgetRemaining)
 
-	// Determine service status changes
-	newStatus := "HEALTHY"
-	if len(alerts) > 0 {
-		for _, a := range alerts {
-			if a.Severity == "CRITICAL" {
-				newStatus = "INCIDENT"
-				break
-			}
-		}
-		if newStatus != "INCIDENT" {
-			newStatus = "DEGRADED"
-		}
-	}
-
+	// Status is the worst breach across all metrics, so a healthy latency sample
+	// can't mask an error rate that is still over threshold
 	sli.mu.Lock()
+	delete(sli.Breaches, metric.MetricName)
+	for _, a := range alerts {
+		sli.Breaches[metric.MetricName] = a.Severity
+	}
+	newStatus := worstStatus(sli.Breaches)
 	oldStatus := sli.CurrentStatus
 	if newStatus != oldStatus {
 		sli.CurrentStatus = newStatus
@@ -283,6 +279,17 @@ func evaluateMetric(metric Metric, alertWriter, statusWriter *kafka.Writer) {
 	}
 }
 
+func worstStatus(breaches map[string]string) string {
+	status := "HEALTHY"
+	for _, sev := range breaches {
+		if sev == "CRITICAL" {
+			return "INCIDENT"
+		}
+		status = "DEGRADED"
+	}
+	return status
+}
+
 // ----- Health endpoint -----
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -294,10 +301,17 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		Status          string  `json:"status"`
 		Availability    float64 `json:"availability"`
 		ErrorBudgetLeft float64 `json:"error_budget_remaining"`
+		SLOTarget       float64 `json:"slo_target"`
+		LatencyMs       float64 `json:"latency_ms"`
+		LatencyLimitMs  float64 `json:"latency_threshold_ms"`
 	}
 
-	var report []ServiceHealth
+	report := []ServiceHealth{}
 	for id, sli := range serviceSLIs {
+		config, ok := sloConfigs[id]
+		if !ok {
+			config = SLOConfig{Target: 99.9, LatencyThreshold: 500}
+		}
 		avail := calculateAvailability(sli)
 		budget := calculateErrorBudgetRemaining(id, avail)
 		sli.mu.RLock()
@@ -306,6 +320,9 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 			Status:          sli.CurrentStatus,
 			Availability:    math.Round(avail*100) / 100,
 			ErrorBudgetLeft: math.Round(budget*100) / 100,
+			SLOTarget:       config.Target,
+			LatencyMs:       sli.LatencyLast,
+			LatencyLimitMs:  config.LatencyThreshold,
 		})
 		sli.mu.RUnlock()
 	}
@@ -317,6 +334,11 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	broker := getKafkaBroker()
 
+	// Report every registered service from startup, not only ones that have sent metrics
+	for id := range sloConfigs {
+		getSLI(id)
+	}
+
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{broker},
 		Topic:    "service.metric.received",
@@ -325,16 +347,18 @@ func main() {
 	})
 
 	alertWriter := &kafka.Writer{
-		Addr:     kafka.TCP(broker),
-		Topic:    "alert.triggered",
-		Balancer: &kafka.LeastBytes{},
+		Addr:         kafka.TCP(broker),
+		Topic:        "alert.triggered",
+		Balancer:     &kafka.LeastBytes{},
+		BatchTimeout: 10 * time.Millisecond, // default 1s batch window blocks every synchronous write
 	}
 	defer alertWriter.Close()
 
 	statusWriter := &kafka.Writer{
-		Addr:     kafka.TCP(broker),
-		Topic:    "service.status.changed",
-		Balancer: &kafka.LeastBytes{},
+		Addr:         kafka.TCP(broker),
+		Topic:        "service.status.changed",
+		Balancer:     &kafka.LeastBytes{},
+		BatchTimeout: 10 * time.Millisecond, // default 1s batch window blocks every synchronous write
 	}
 	defer statusWriter.Close()
 

@@ -186,6 +186,7 @@ services:
     environment:
       - METRICS_API_HOST=metrics-api:50051
       - INCIDENT_API_HOST=incident-api:50052
+      - ALERT_ENGINE_URL=http://alert-engine:8082
     depends_on:
       - metrics-api
       - incident-api

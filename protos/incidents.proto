@@ -21,6 +21,8 @@ message Incident {
   string status = 5;
   int64 created_at = 6;
   int64 resolved_at = 7;
+  string severity = 8; // P1, P2, P3
+  int64 acked_at = 9;
 }
 
 message GetIncidentsResponse {

@@ -122,6 +122,8 @@ func (s *server) GetIncidents(ctx context.Context, req *pb.GetIncidentsRequest) 
 			Status:      inc.Status,
 			CreatedAt:   inc.CreatedAt,
 			ResolvedAt:  inc.ResolvedAt,
+			Severity:    inc.Severity,
+			AckedAt:     inc.AckedAt,
 		})
 	}
 	return &pb.GetIncidentsResponse{Incidents: pbIncidents}, nil
@@ -178,6 +180,8 @@ func (s *server) UpdateIncidentStatus(ctx context.Context, req *pb.UpdateInciden
 			Status:      incident.Status,
 			CreatedAt:   incident.CreatedAt,
 			ResolvedAt:  incident.ResolvedAt,
+			Severity:    incident.Severity,
+			AckedAt:     incident.AckedAt,
 		},
 	}, nil
 }
@@ -326,16 +330,18 @@ func main() {
 	broker := getKafkaBroker()
 
 	kwCreated := &kafka.Writer{
-		Addr:     kafka.TCP(broker),
-		Topic:    "incident.created",
-		Balancer: &kafka.LeastBytes{},
+		Addr:         kafka.TCP(broker),
+		Topic:        "incident.created",
+		Balancer:     &kafka.LeastBytes{},
+		BatchTimeout: 10 * time.Millisecond, // default 1s batch window blocks every synchronous write
 	}
 	defer kwCreated.Close()
 
 	kwResolved := &kafka.Writer{
-		Addr:     kafka.TCP(broker),
-		Topic:    "incident.resolved",
-		Balancer: &kafka.LeastBytes{},
+		Addr:         kafka.TCP(broker),
+		Topic:        "incident.resolved",
+		Balancer:     &kafka.LeastBytes{},
+		BatchTimeout: 10 * time.Millisecond, // default 1s batch window blocks every synchronous write
 	}
 	defer kwResolved.Close()
 
